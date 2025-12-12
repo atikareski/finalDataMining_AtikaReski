@@ -114,3 +114,15 @@ if not df_original.empty:
     st.markdown("---")
 
     st.info("Berdasarkan analisis ini, Kluster 0 adalah Ritel Volume Tinggi, Kluster 1 adalah Horeca Standar, dan Kluster 2 adalah Pembeli Eksklusif Volume Sangat Tinggi.")
+
+    # Menampilkan Kesimpulan Singkat
+    st.markdown("### Kesimpulan Strategis")
+    st.markdown("""
+        Analisis berhasil mengelompokkan pelanggan menjadi **3 segmen strategis** berdasarkan kebiasaan belanja:
+        
+        | Segmen | Perilaku Kunci | Strategi Bisnis |
+        | :--- | :--- | :--- |
+        | **Toko Ritel & Kebutuhan Pokok (Kluster 0)** | Pengeluaran tinggi pada Sembako, Susu, dan Detergents/Kertas. | Fokus pada **Diskon Volume** dan efisiensi logistik. |
+        | **Pemilik Restoran atau Katering (Kluster 1)** | Pengeluaran tinggi pada Produk **Segar (Fresh)** dengan jumlah tinggi. | Fokus pada **Kualitas Bahan Baku** dan konsistensi pasokan. |
+        | **Pembeli Eksklusif Super-Premium (Kluster 2)** | Pengeluaran ekstrem pada **Frozen** dan **Delicassen**. | Perlakukan sebagai Akun Kunci (Key Account); prioritaskan layanan eksklusif dan retensi. |
+    """)
