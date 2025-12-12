@@ -23,7 +23,7 @@ def load_data(file_name):
         st.error(f"File '{file_name}' tidak ditemukan. Pastikan file berada di direktori yang sama.")
         return pd.DataFrame()
 
-FILE_NAME = "Wholesale customers data.csv"
+FILE_NAME = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
 df_original = load_data(FILE_NAME)
 
 if not df_original.empty:
@@ -112,4 +112,5 @@ if not df_original.empty:
     st.dataframe(cluster_size.rename("Jumlah Pelanggan").to_frame(), use_container_width=True)
 
     st.markdown("---")
+
     st.info("Berdasarkan analisis ini, Kluster 0 adalah Ritel Volume Tinggi, Kluster 1 adalah Horeca Standar, dan Kluster 2 adalah Pembeli Eksklusif Volume Sangat Tinggi.")
