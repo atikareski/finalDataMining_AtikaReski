@@ -41,15 +41,15 @@ if not df_original.empty:
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         cluster_labels = kmeans.fit_predict(X_scaled)
         score = silhouette_score(X_scaled, cluster_labels)
-        silhouette_results.append({'k': k, 'Silhouette Score': score})
+        silhouette_results.append({'k': k, 'Skor Siluet': score})
 
     silhouette_df = pd.DataFrame(silhouette_results)
     
-    st.subheader("Hasil Perhitungan Silhouette Score Rata-rata")
+    st.subheader("Hasil Perhitungan Silhouette Score")
     st.dataframe(silhouette_df, hide_index=True, use_container_width=True, height=350)
 
     k_optimal = silhouette_df.loc[silhouette_df['Skor Siluet'].idxmax()]['k']
-    st.success(f"Silhouette Score tertinggi adalah **{silhouette_df['Skor Siluet'].max():.4f}** pada k = **{int(k_optimal)}**. Menggunakan k={int(k_optimal)} untuk clustering.")
+    st.success(f"Skor Siluet tertinggi adalah **{silhouette_df['Skor Siluet'].max():.4f}** pada k = **{int(k_optimal)}**. Kami menggunakan k={int(k_optimal)} untuk clustering.")
 
     kmeans = KMeans(n_clusters=int(k_optimal), random_state=42, n_init=10)
     df_original['Cluster'] = kmeans.fit_predict(X_scaled)
@@ -107,6 +107,4 @@ if not df_original.empty:
         | **Pemilik Restoran atau Katering (Kluster 1)** | Pengeluaran tinggi pada Produk **Segar (Fresh)** dengan jumlah tinggi. | Fokus pada **Kualitas Bahan Baku** dan konsistensi pasokan. |
         | **Pembeli Eksklusif Super-Premium (Kluster 2)** | Pengeluaran ekstrem pada **Frozen** dan **Delicassen**. | Perlakukan sebagai Akun Kunci (Key Account) memprioritaskan layanan eksklusif dan retensi. |
     """)
-
-
 
