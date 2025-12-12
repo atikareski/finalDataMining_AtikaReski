@@ -48,7 +48,7 @@ if not df_original.empty:
     st.subheader("Hasil Perhitungan Silhouette Score Rata-rata")
     st.dataframe(silhouette_df, hide_index=True, use_container_width=True, height=350)
 
-    k_optimal = silhouette_df.loc[silhouette_df['Silhouette Score'].idxmax()]['k']
+    k_optimal = silhouette_df.loc[silhouette_df['Skor Siluet'].idxmax()]['k']
     st.success(f"Silhouette Score tertinggi adalah **{silhouette_df['Skor Siluet'].max():.4f}** pada k = **{int(k_optimal)}**. Menggunakan k={int(k_optimal)} untuk clustering.")
 
     kmeans = KMeans(n_clusters=int(k_optimal), random_state=42, n_init=10)
@@ -107,5 +107,6 @@ if not df_original.empty:
         | **Pemilik Restoran atau Katering (Kluster 1)** | Pengeluaran tinggi pada Produk **Segar (Fresh)** dengan jumlah tinggi. | Fokus pada **Kualitas Bahan Baku** dan konsistensi pasokan. |
         | **Pembeli Eksklusif Super-Premium (Kluster 2)** | Pengeluaran ekstrem pada **Frozen** dan **Delicassen**. | Perlakukan sebagai Akun Kunci (Key Account) memprioritaskan layanan eksklusif dan retensi. |
     """)
+
 
 
