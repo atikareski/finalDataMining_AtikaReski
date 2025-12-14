@@ -1,89 +1,75 @@
 import streamlit as st
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-from sklearn.metrics import accuracy_score
-from sklearn.decomposition import PCA
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+import joblib 
 import numpy as np
 import matplotlib.pyplot as plt
-import warnings
+import requests
+from io import BytesIO # Digunakan untuk memuat konten biner dari URL
 
-# --- 🎯 GANTI INI DENGAN URL MENTAH (RAW) GITHUB ANDA ---
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
+# --- 🎯 GANTI INI DENGAN URL FOLDER RAW GITHUB ANDA ---
+# Contoh: https://raw.githubusercontent.com/username/repo/branch/folder_path/
+MODEL_BASE_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv" 
 # --------------------------------------------------------
 
-# Definisikan K Optimal yang Ditetapkan
+# --- KONFIGURASI MODEL YANG DIMUAT ---
 K_FIXED = 3 
-# Warna untuk Kluster (akan digunakan di plot PCA)
-CLUSTER_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c'] 
+SPENDING_COLS = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
+
+# --- 1. Muat Model dan Data (Caching) ---
+@st.cache_resource
+def load_and_preprocess_models():
+    """Mengunduh dan memuat semua model dan data historis PCA dari GitHub."""
+    
+    # Fungsi pembantu untuk mengunduh dan memuat file PKL
+    def fetch_model(filename):
+        url = MODEL_BASE_URL + filename
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                # Muat konten biner
+                return joblib.load(BytesIO(response.content))
+            else:
+                st.error(f"Gagal mengunduh {filename}. Status: {response.status_code}")
+                return None
+        except Exception as e:
+            st.error(f"Error memuat {filename}: {e}")
+            return None
+
+    # Muat semua objek yang disimpan
+    scaler = fetch_model("scaler.pkl")
+    model_logistic = fetch_model("model_logistic.pkl")
+    pca = fetch_model("pca.pkl")
+    pca_data_historis = fetch_model("pca_data_historis.pkl")
+    
+    # Ambil rata-rata dari scaler untuk input default (X_train mean)
+    # Kita membuat DataFrame dummy hanya untuk mendapatkan kolom spending_cols
+    if scaler is not None:
+        X_means = pd.Series(scaler.mean_, index=SPENDING_COLS).round(0).astype(int)
+    else:
+        X_means = None
+
+    if not all([scaler, model_logistic, pca, pca_data_historis]):
+        st.stop()
+        
+    return scaler, model_logistic, pca, pca_data_historis, X_means
+
+# Jalankan pemuatan model
+scaler, model_logistic, pca, pca_data_historis, X_means = load_and_preprocess_models()
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
 st.title("Aplikasi Prediksi Segmen Pelanggan Baru (K=3)")
-st.caption("Model Logistik Regression otomatis mengklasifikasikan pelanggan baru berdasarkan pola pengeluaran.")
-
-# --- 1. Muat Data dan Latih Model (Caching) ---
-def train_models(url):
-    # Memuat dan Pra-pemrosesan
-    try:
-        df_base = pd.read_csv(url) 
-    except Exception as e:
-        st.error(f"Gagal memuat data dari URL. Error: {e}")
-        return None, None, None, None, None, None, None
-
-    spending_cols = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
-    X = df_base[spending_cols]
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    
-    # Nonaktifkan ConvergenceWarning
-    warnings.filterwarnings('ignore', category=UserWarning) 
-
-    # K-Means Clustering (K=3)
-    kmeans = KMeans(n_clusters=K_FIXED, random_state=42, n_init=10)
-    df_clustered = df_base.copy()
-    df_clustered['Cluster'] = kmeans.fit_predict(X_scaled)
-    cluster_spending_means = df_clustered.groupby('Cluster')[spending_cols].mean().round(2)
-    
-    # Regresi Logistik (Klasifikasi)
-    X_logreg = X_scaled
-    Y_logreg = df_clustered['Cluster']
-    X_train, X_test, Y_train, Y_test = train_test_split(X_logreg, Y_logreg, test_size=0.3, random_state=42) 
-    
-    model_logistic = LogisticRegression(
-        random_state=42, 
-        solver='lbfgs',      
-        max_iter=10000,        
-        tol=0.0001
-    )
-    model_logistic.fit(X_train, Y_train)
-    accuracy = accuracy_score(Y_test, model_logistic.predict(X_test))
-    
-    # PCA untuk Visualisasi
-    pca = PCA(n_components=2)
-    pca_data = pca.fit_transform(X_scaled)
-    
-    return df_clustered, cluster_spending_means, model_logistic, accuracy, pca, pca_data, scaler
-
-# Jalankan pelatihan model dan dapatkan hasilnya
-df_clustered, cluster_spending_means, model_logistic, accuracy, pca, pca_data, scaler = train_models(GITHUB_RAW_URL)
-
-if df_clustered is None:
-    st.stop()
-    
-spending_cols = df_clustered.columns[4:-1].tolist() # Ambil kolom pengeluaran
+st.caption("Model Logistik Regression memprediksi kluster berdasarkan model yang telah dilatih.")
 
 # --- Fungsi Visualisasi PCA (Termasuk Pelanggan Baru) ---
-def plot_pca_clusters(pca_data, df_clustered, new_point=None, predicted_cluster=None):
+def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_cluster=None):
     fig, ax = plt.subplots(figsize=(10, 8))
     
     # Plot Data Basis (Pelanggan Lama)
     scatter = ax.scatter(
-        pca_data[:, 0], 
-        pca_data[:, 1], 
-        c=df_clustered['Cluster'],
+        pca_data_historis['PC1'], 
+        pca_data_historis['PC2'], 
+        c=pca_data_historis['Cluster'],
         cmap='viridis', 
         marker='o', 
         s=50, 
@@ -126,15 +112,14 @@ def plot_pca_clusters(pca_data, df_clustered, new_point=None, predicted_cluster=
     ax.grid(True, linestyle='--', alpha=0.6)
     return fig
 
-# --- Layout Aplikasi ---
+# --- Layout Aplikasi dan Input ---
 
 st.sidebar.header("Uji Prediksi Pelanggan Baru")
 st.sidebar.markdown("Masukkan pengeluaran tahunan (Rp):")
 
-# Input Interaktif
 input_values = {}
-for col_name in spending_cols:
-    default_mean = int(df_clustered[col_name].mean())
+for col_name in SPENDING_COLS:
+    default_mean = X_means[col_name] if X_means is not None else 5000 # Fallback jika mean tidak termuat
     input_values[col_name] = st.sidebar.number_input(
         f'{col_name} (Rata-rata: {default_mean:,})', 
         min_value=0, 
@@ -142,56 +127,53 @@ for col_name in spending_cols:
         key=f'input_{col_name}'
     )
 
-# Tombol Prediksi
 predict_button = st.sidebar.button("Prediksi Segmen")
 
 # --- Tampilan Hasil Statis ---
-st.header("1. Hasil Analisis Inti")
-
-col_info, col_mean = st.columns([1, 2])
-
-with col_info:
-    st.metric(label="Akurasi Model Klasifikasi", value=f"{accuracy*100:.2f} %")
-    st.markdown("Model Logistik sangat andal dalam memprediksi keanggotaan kluster.")
-    st.subheader("Ukuran Segmen")
-    st.dataframe(df_clustered['Cluster'].value_counts().rename("Jumlah Pelanggan").to_frame(), use_container_width=True)
-
-with col_mean:
-    st.subheader("Profil Pengeluaran Rata-rata per Segmen")
-    st.dataframe(cluster_spending_means, use_container_width=True)
-
-st.divider()
-
-# --- Tampilan Plot PCA Default ---
+st.header("1. Peta Segmentasi Pelanggan Historis")
 col_pca_display, col_results_display = st.columns([2, 1])
 
+# Menampilkan PCA Plot Awal
 with col_pca_display:
-    st.subheader("2. Peta Segmentasi Pelanggan (PCA)")
-    fig_pca = plot_pca_clusters(pca_data, df_clustered)
+    st.subheader("Peta Segmentasi (PCA) Data Historis")
+    fig_pca = plot_pca_clusters(pca_data_historis, pca)
     pca_plot_area = st.pyplot(fig_pca)
+
+# Menampilkan Tinjauan Segmen
+with col_results_display:
+    st.subheader("Tinjauan Segmen Historis")
+    # Karena kita tidak melatih model di sini, kita gunakan value_counts dari data PCA historis
+    st.dataframe(pca_data_historis['Cluster'].value_counts().rename("Jumlah Pelanggan").to_frame(), use_container_width=True)
+    st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
+
 
 # --- Logika Prediksi dan Pembaruan Plot ---
 if predict_button:
     # 1. Persiapan Data Input
     new_customer_data = pd.DataFrame([input_values])
-    new_customer_data = new_customer_data[spending_cols]
-    new_customer_scaled = scaler.transform(new_customer_data.values)
+    new_customer_data = new_customer_data[SPENDING_COLS] 
     
-    # 2. Prediksi Kluster & Probabilitas
+    X_new = new_customer_data.values
+    
+    # 2. Standardisasi data input secara MANUAL
+    # Menggunakan mean_ dan scale_ dari scaler yang dimuat
+    new_customer_scaled = (X_new - scaler.mean_) / scaler.scale_
+    
+    # 3. Prediksi Kluster & Probabilitas
     prediction = model_logistic.predict(new_customer_scaled)
     prediction_proba = model_logistic.predict_proba(new_customer_scaled)[0]
     predicted_cluster = prediction[0]
     
-    # 3. Transformasi ke ruang PCA untuk plot
+    # 4. Transformasi ke ruang PCA untuk plot
     new_point_pca = pca.transform(new_customer_scaled)
     
-    # 4. Update Plot PCA dengan Pelanggan Baru
+    # 5. Update Plot PCA dengan Pelanggan Baru
     with col_pca_display:
-        st.subheader("Peta Segmentasi Pelanggan (PCA)")
-        fig_updated = plot_pca_clusters(pca_data, df_clustered, new_point_pca, predicted_cluster)
+        st.subheader("Peta Segmentasi Pelanggan (PCA) - Hasil Prediksi")
+        fig_updated = plot_pca_clusters(pca_data_historis, pca, new_point_pca, predicted_cluster)
         pca_plot_area.pyplot(fig_updated) # Memperbarui plot
 
-    # 5. Tampilkan Hasil Prediksi dan Tindakan Bisnis
+    # 6. Tampilkan Hasil Prediksi dan Tindakan Bisnis
     with col_results_display:
         st.subheader("3. Hasil Prediksi")
         st.success(f"Segmen Diprediksi: **Kluster {predicted_cluster}**")
@@ -208,17 +190,8 @@ if predict_button:
         st.markdown("##### Rekomendasi Tindakan Bisnis:")
         
         if predicted_cluster == 2:
-            st.warning("Kluster 2 (Super-Premium): Alihkan segera ke tim Key Account untuk layanan dan penawaran eksklusif.")
+            st.warning("Kluster 2 (Super-Premium): Alihkan segera ke tim Key Account (Akun Kunci) dengan penawaran eksklusif.")
         elif predicted_cluster == 0:
             st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume pada produk Sembako dan produk berumur panjang.")
         else:
             st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik pasokan yang cepat dan andal.")
-else:
-    # Tampilkan hasil kluster di kolom hasil saat belum ada prediksi
-    with col_results_display:
-        st.subheader("Tinjauan Segmen")
-        st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
-
-
-
-
