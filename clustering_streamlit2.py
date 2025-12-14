@@ -33,7 +33,7 @@ df_original, X_scaled, spending_cols = load_and_preprocess_data(GITHUB_RAW_URL)
 if df_original.empty or X_scaled is None:
     st.stop()
 
-# --- TAMPILAN DATA AWAL (PERMINTAAN ANDA) ---
+# --- TAMPILAN DATA AWAL ---
 st.header("1. Data Awal")
 st.dataframe(df_original.head())
 # ---------------------------------------------
