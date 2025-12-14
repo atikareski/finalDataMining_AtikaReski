@@ -14,6 +14,21 @@ MODEL_BASE_URL = "https://github.com/atikareski/finalDataMining_AtikaReski/raw/r
 K_FIXED = 3 
 SPENDING_COLS = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
 
+# --- PROFIL KLUSTER STATIS UNTUK DISPLAY ---
+# Indeks HARUS string ('0', '1', '2') agar sesuai dengan tipe data di Streamlit
+CLUSTER_PROFILES_DATA = {
+    'Fresh': [15000, 5000, 30000],          
+    'Milk': [4000, 8000, 15000],            
+    'Grocery': [7000, 15000, 10000],        
+    'Frozen': [4000, 1500, 8000],
+    'Detergents_Paper': [1500, 6000, 3000],
+    'Delicassen': [1000, 2000, 5000]
+}
+# DataFrame dibuat dengan INDEX STRING yang benar
+CLUSTER_PROFILES_DF = pd.DataFrame(CLUSTER_PROFILES_DATA, index=['0', '1', '2'])
+CLUSTER_PROFILES_DF = CLUSTER_PROFILES_DF.T.rename(columns={'0': 'Kluster 0', '1': 'Kluster 1', '2': 'Kluster 2'}).T
+
+
 # --- 1. Muat Model dan Data (Caching) ---
 @st.cache_resource
 def load_and_preprocess_models():
@@ -32,27 +47,27 @@ def load_and_preprocess_models():
             st.error(f"Error memuat {filename}: {e}")
             return None
 
-    # Muat semua objek
+    # Muat hanya 4 objek PKL yang diperlukan
     scaler = fetch_model("scaler.pkl")
     model_logistic = fetch_model("model_logistic.pkl")
     pca = fetch_model("pca.pkl")
     pca_data_historis = fetch_model("pca_data_historis.pkl")
-    cluster_profiles = fetch_model("cluster_spending_means.pkl") # PKL baru
     
     if scaler is not None:
         X_means = pd.Series(scaler.mean_, index=SPENDING_COLS).round(0).astype(int)
     else:
         X_means = None
 
-    # Pengecekan stabilitas pemuatan (6 objek)
-    if scaler is None or model_logistic is None or pca is None or pca_data_historis is None or cluster_profiles is None:
+    # Pengecekan stabilitas pemuatan (4 objek)
+    if scaler is None or model_logistic is None or pca is None or pca_data_historis is None:
         st.error("Satu atau lebih file model (.pkl) gagal dimuat. Periksa kembali URL dan akses file.")
         st.stop()
         
-    return scaler, model_logistic, pca, pca_data_historis, X_means, cluster_profiles
+    return scaler, model_logistic, pca, pca_data_historis, X_means
 
 # Jalankan pemuatan model
-scaler, model_logistic, pca, pca_data_historis, X_means, CLUSTER_PROFILES_DF = load_and_preprocess_models() 
+scaler, model_logistic, pca, pca_data_historis, X_means = load_and_preprocess_models() 
+
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
@@ -139,7 +154,7 @@ with col_pca_display:
 with col_results_display:
     st.subheader("Tinjauan Segmen Historis")
     
-    # Tampilkan profil rata-rata semua kluster (DIMUAT DINAMIS)
+    # Tampilkan profil rata-rata semua kluster (DIMUAT STATIS)
     st.dataframe(CLUSTER_PROFILES_DF.T.style.format("{:,.0f}"), use_container_width=True)
     st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
 
@@ -174,14 +189,13 @@ if predict_button:
         st.subheader("3. Hasil Prediksi")
         st.success(f"Segmen Diprediksi: **Kluster {predicted_cluster}**")
         
-        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI (PENTING) ---
-        st.markdown(f"**Pola Khas Kluster {predicted_cluster}:**")
+        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI (Dari data statis) ---
+        st.markdown(f"**Pola Khas Kluster {predicted_cluster}**")
         
-        # PERBAIKAN AKHIR: Konversi predicted_cluster menjadi string untuk akses loc
+        # Mengakses DataFrame statis menggunakan string index yang sudah disiapkan
         profile_key_str = str(predicted_cluster) 
         
         st.dataframe(
-            # Akses menggunakan string key
             CLUSTER_PROFILES_DF.loc[[profile_key_str]].T.rename(columns={profile_key_str: "Pengeluaran Rata-rata"}).style.format("{:,.0f}"),
             use_container_width=True
         )
