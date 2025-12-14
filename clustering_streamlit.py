@@ -175,6 +175,7 @@ with col_pca_display:
 if predict_button:
     # 1. Persiapan Data Input
     new_customer_data = pd.DataFrame([input_values])
+    new_customer_data = new_customer_data[spending_cols]
     new_customer_scaled = scaler.transform(new_customer_data.values)
     
     # 2. Prediksi Kluster & Probabilitas
@@ -218,5 +219,6 @@ else:
     with col_results_display:
         st.subheader("Tinjauan Segmen")
         st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
+
 
 
