@@ -7,11 +7,9 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import numpy as np
 
-# --- 🎯 GANTI INI DENGAN URL MENTAH (RAW) GITHUB ANDA ---
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
 # --------------------------------------------------------
 
-# --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
 st.title("Aplikasi Segmentasi Pelanggan Interaktif (K-Means)")
 st.write("Gunakan slider di bawah untuk melihat bagaimana perubahan jumlah kluster (K) memengaruhi segmentasi pelanggan.")
@@ -33,28 +31,28 @@ def load_and_preprocess_data(url):
 df_original, X_scaled, spending_cols = load_and_preprocess_data(GITHUB_RAW_URL)
 
 if df_original.empty or X_scaled is None:
-    st.stop() # Hentikan eksekusi jika data gagal dimuat
+    st.stop()
+
+# --- TAMPILAN DATA AWAL (PERMINTAAN ANDA) ---
+st.header("1. Data Awal")
+st.dataframe(df_original.head())
+# ---------------------------------------------
 
 # --- 2. Fungsi Analisis Utama yang Bergantung pada K ---
-# Fungsi ini akan dijalankan setiap kali nilai 'k' berubah
 def run_clustering_analysis(k, X_scaled, df_base, spending_cols):
-    # 2a. Terapkan K-Means Clustering
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     df_base['Cluster'] = kmeans.fit_predict(X_scaled)
-    
-    # Hitung Skor Siluet untuk K yang dipilih
+   
     if k > 1:
         score = silhouette_score(X_scaled, df_base['Cluster'])
     else:
         score = 0
-    
-    # 2b. Reduksi Dimensi untuk Visualisasi (PCA)
+ 
     pca = PCA(n_components=2)
     principal_components = pca.fit_transform(X_scaled)
     pca_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
     pca_df['Cluster'] = df_base['Cluster']
 
-    # 2c. Visualisasi Kluster pada Plot 2D
     fig, ax = plt.subplots(figsize=(10, 8))
     scatter = ax.scatter(
         pca_df['PC1'],
@@ -78,7 +76,6 @@ def run_clustering_analysis(k, X_scaled, df_base, spending_cols):
     ax.add_artist(legend1)
     ax.grid(True, linestyle='--', alpha=0.6)
 
-    # 2d. Profil Kluster
     cluster_spending_means = df_base.groupby('Cluster')[spending_cols].mean().round(2)
     cluster_size = df_base['Cluster'].value_counts().sort_index()
     
@@ -103,25 +100,20 @@ k_optimal_default, silhouette_df = calculate_optimal_k(X_scaled)
 
 # --- 4. Tampilkan Widget dan Hasil ---
 
-# Sidebar/Kolom untuk Kontrol K
 st.sidebar.header("Kontrol Kluster")
 selected_k = st.sidebar.slider(
     'Pilih Jumlah Kluster (K):',
     min_value=2, 
     max_value=10, 
-    value=k_optimal_default, # Nilai default adalah K optimal
+    value=k_optimal_default,
     step=1
 )
 
-# Tampilkan data awal (opsional di sidebar)
-# st.sidebar.subheader("Data Awal")
-# st.sidebar.dataframe(df_original.head())
-
-# Jalankan analisis dengan K yang dipilih pengguna
+# Jalankan analisis dengan K yang dipilih
 fig, cluster_spending_means, cluster_size, current_score = run_clustering_analysis(
     selected_k, 
     X_scaled, 
-    df_original.copy(), # Gunakan salinan agar @st.cache_data di load_data tidak terpengaruh
+    df_original.copy(), 
     spending_cols
 )
 
