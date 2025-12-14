@@ -25,7 +25,6 @@ st.title("Aplikasi Prediksi Segmen Pelanggan Baru (K=3)")
 st.caption("Model Logistik Regression otomatis mengklasifikasikan pelanggan baru berdasarkan pola pengeluaran.")
 
 # --- 1. Muat Data dan Latih Model (Caching) ---
-@st.cache_resource
 def train_models(url):
     # Memuat dan Pra-pemrosesan
     try:
@@ -219,6 +218,7 @@ else:
     with col_results_display:
         st.subheader("Tinjauan Segmen")
         st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
+
 
 
 
