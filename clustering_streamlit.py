@@ -19,13 +19,14 @@ st.title("Aplikasi Otomatisasi Segmentasi Pelanggan")
 st.caption("Fokus: Memeriksa perilaku pelanggan baru dan memprediksi segmen klusternya.")
 
 # Definisikan K Optimal (berdasarkan hasil analisis sebelumnya)
-K_FIXED = 3 # Kita gunakan 3, yang merupakan K optimal dari data ini
+K_FIXED = 3 
 
 # --- 1. Muat Data dan Standardisasi (Caching) ---
 @st.cache_data
 def load_and_preprocess_data(url):
     try:
-        df = pd.read_csv(url)
+        # Gunakan nama file yang diharapkan jika URL tidak berfungsi
+        df = pd.read_csv(url) 
         spending_cols = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
         X = df[spending_cols]
         scaler = StandardScaler()
@@ -53,15 +54,15 @@ def train_models(k, X_scaled, df_base, spending_cols):
     X_logreg = X_scaled
     Y_logreg = df_clustered['Cluster']
     
-    # Membagi data (tanpa stratify karena Kluster 2 sangat kecil)
+    # Membagi data (tanpa stratify)
     X_train, X_test, Y_train, Y_test = train_test_split(X_logreg, Y_logreg, test_size=0.3, random_state=42) 
     
-    # Latih model Logistik
+    # Latih model Logistik DENGAN PERBAIKAN STABILITAS
     model_logistic = LogisticRegression(
         random_state=42, 
-        solver='newton-cg', # Menggunakan solver yang berbeda dan kuat
-        max_iter=5000, 
-        multi_class='multinomial' # Perbaikan error
+        solver='newton-cg',   # SOLUSI: Menggunakan solver yang lebih kuat dan stabil
+        max_iter=5000,        # SOLUSI: Meningkatkan batas iterasi
+        multi_class='multinomial'
     )
     model_logistic.fit(X_train, Y_train)
     
@@ -138,7 +139,7 @@ st.sidebar.header("Input Pelanggan Baru")
 st.sidebar.markdown("Masukkan data pengeluaran (misal: dalam IDR):")
 
 input_values = {}
-input_cols = st.sidebar.columns(1) # Membuat kolom input vertikal di sidebar
+input_cols = st.sidebar.columns(1) 
 
 for col_name in spending_cols:
     default_mean = int(df_original[col_name].mean())
