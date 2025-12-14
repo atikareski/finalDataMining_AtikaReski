@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- 🎯 GANTI INI DENGAN URL MENTAH (RAW) GITHUB ANDA ---
-GITHUB_RAW_URL = "GANTI_DENGAN_URL_RAW_GITHUB_ANDA"
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
 # --------------------------------------------------------
 
 # --- Konfigurasi Halaman Streamlit ---
@@ -183,3 +183,4 @@ if st.sidebar.button("Prediksi Kluster Pelanggan"):
         st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume untuk Sembako dan Milk.")
     else:
         st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik cepat.")
+
