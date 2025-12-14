@@ -56,13 +56,13 @@ def train_models(k, X_scaled, df_base, spending_cols):
     # Membagi data (tanpa stratify karena Kluster 2 sangat kecil)
     X_train, X_test, Y_train, Y_test = train_test_split(X_logreg, Y_logreg, test_size=0.3, random_state=42) 
     
-    # Latih model Logistik
-    model_logistic = LogisticRegression(
+   model_logistic = LogisticRegression(
         random_state=42, 
-        solver='lbfgs', 
-        max_iter=1000, 
-        multi_class='multinomial' # Perbaikan error
+        solver='newton-cg', # Menggunakan solver yang berbeda dan kuat
+        max_iter=5000,      # Meningkatkan batas iterasi untuk menjamin konvergensi
+        multi_class='multinomial' 
     )
+
     model_logistic.fit(X_train, Y_train)
     
     # Hitung akurasi model
@@ -183,4 +183,5 @@ if st.sidebar.button("Prediksi Kluster Pelanggan"):
         st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume untuk Sembako dan Milk.")
     else:
         st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik cepat.")
+
 
