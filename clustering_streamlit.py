@@ -60,10 +60,12 @@ def train_models(k, X_scaled, df_base, spending_cols):
     # Latih model Logistik DENGAN PERBAIKAN STABILITAS
     model_logistic = LogisticRegression(
         random_state=42, 
-        solver='newton-cg',   # SOLUSI: Menggunakan solver yang lebih kuat dan stabil
-        max_iter=5000,        # SOLUSI: Meningkatkan batas iterasi
-        multi_class='multinomial'
+        solver='liblinear',   # Solusi: Menggunakan solver yang paling stabil dan tangguh
+        max_iter=5000,        
+        multi_class='ovr',    # Menggunakan OvR (One-vs-Rest) karena liblinear tidak mendukung multinomial secara native
+        C=0.8                 # Sedikit menurunkan regularisasi untuk membantu konvergensi
     )
+    
     model_logistic.fit(X_train, Y_train)
     
     # Hitung akurasi model
@@ -184,3 +186,4 @@ if st.sidebar.button("Prediksi Kluster Pelanggan"):
         st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume untuk Sembako dan Milk.")
     else:
         st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik cepat.")
+
