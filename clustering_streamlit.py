@@ -7,7 +7,6 @@ import requests
 from io import BytesIO 
 
 # --- 🎯 GANTI INI DENGAN URL FOLDER RAW GITHUB ANDA ---
-# PASTIKAN Anda sudah mengunggah model_logistic.pkl BARU dan cluster_spending_means.pkl
 MODEL_BASE_URL = "https://github.com/atikareski/finalDataMining_AtikaReski/raw/refs/heads/main/models/" 
 # --------------------------------------------------------
 
@@ -15,14 +14,11 @@ MODEL_BASE_URL = "https://github.com/atikareski/finalDataMining_AtikaReski/raw/r
 K_FIXED = 3 
 SPENDING_COLS = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
 
-# --- HAPUS: Tidak perlu lagi CLUSTER_PROFILES_DATA atau CLUSTER_PROFILES statis di sini. ---
-
 # --- 1. Muat Model dan Data (Caching) ---
 @st.cache_resource
 def load_and_preprocess_models():
     """Mengunduh dan memuat semua model dan data historis PCA dari GitHub."""
     
-    # Fungsi pembantu untuk mengunduh dan memuat file PKL
     def fetch_model(filename):
         url = MODEL_BASE_URL + filename
         try:
@@ -36,34 +32,27 @@ def load_and_preprocess_models():
             st.error(f"Error memuat {filename}: {e}")
             return None
 
-    # Muat semua objek yang disimpan
+    # Muat semua objek
     scaler = fetch_model("scaler.pkl")
     model_logistic = fetch_model("model_logistic.pkl")
     pca = fetch_model("pca.pkl")
     pca_data_historis = fetch_model("pca_data_historis.pkl")
+    cluster_profiles = fetch_model("cluster_spending_means.pkl") # PKL baru
     
-    # PERUBAHAN: MUAT PROFIL KLUSTER DARI FILE PKL BARU
-    # File ini berisi DataFrame profil rata-rata, ditranspose (T)
-    cluster_profiles = fetch_model("cluster_spending_means.pkl")
-    
-    # Ambil rata-rata dari scaler untuk input default (X_train mean)
     if scaler is not None:
         X_means = pd.Series(scaler.mean_, index=SPENDING_COLS).round(0).astype(int)
     else:
         X_means = None
 
-    # Pengecekan stabilitas pemuatan (sekarang 5 objek)
+    # Pengecekan stabilitas pemuatan (6 objek)
     if scaler is None or model_logistic is None or pca is None or pca_data_historis is None or cluster_profiles is None:
         st.error("Satu atau lebih file model (.pkl) gagal dimuat. Periksa kembali URL dan akses file.")
         st.stop()
         
-    # Mengembalikan 5 objek dan 1 DataFrame profil
     return scaler, model_logistic, pca, pca_data_historis, X_means, cluster_profiles
 
-# Jalankan pemuatan model (Variable output disesuaikan)
+# Jalankan pemuatan model
 scaler, model_logistic, pca, pca_data_historis, X_means, CLUSTER_PROFILES_DF = load_and_preprocess_models() 
-# Gunakan nama yang jelas: CLUSTER_PROFILES_DF adalah DataFrame profil yang dimuat
-
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
@@ -150,44 +139,50 @@ with col_pca_display:
 with col_results_display:
     st.subheader("Tinjauan Segmen Historis")
     
-    # PERUBAHAN: Tampilkan profil rata-rata semua kluster (DIMUAT DINAMIS)
+    # Tampilkan profil rata-rata semua kluster (DIMUAT DINAMIS)
     st.dataframe(CLUSTER_PROFILES_DF.T.style.format("{:,.0f}"), use_container_width=True)
     st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
 
 
 # --- Logika Prediksi dan Pembaruan Plot ---
 if predict_button:
-    # Langkah 1: Persiapan data input
-    X_new = pd.DataFrame([input_values], columns=SPENDING_COLS)
+    # 1. Persiapan Data Input
+    new_customer_data = pd.DataFrame([input_values])
+    new_customer_data = new_customer_data[SPENDING_COLS] 
     
-    # Langkah 2: Normalisasi dengan scaler
-    X_new_scaled = scaler.transform(X_new)
+    X_new = new_customer_data.values
     
-    # Langkah 3: Prediksi dengan model logistik
-    predicted_cluster = model_logistic.predict(X_new_scaled)[0]
-    prediction_proba = model_logistic.predict_proba(X_new_scaled)[0]
+    # 2. Standardisasi data input secara MANUAL
+    new_customer_scaled = (X_new - scaler.mean_) / scaler.scale_
     
-    # Langkah 4: Transformasi ke PCA
-    X_new_pca = pca.transform(X_new_scaled)
+    # 3. Prediksi Kluster & Probabilitas
+    prediction = model_logistic.predict(new_customer_scaled)
+    prediction_proba = model_logistic.predict_proba(new_customer_scaled)[0]
+    predicted_cluster = prediction[0]
     
-    # Langkah 5: Update plot dengan titik baru
+    # 4. Transformasi ke ruang PCA untuk plot
+    new_point_pca = pca.transform(new_customer_scaled)
+    
+    # 5. Update Plot PCA dengan Pelanggan Baru
     with col_pca_display:
-        st.subheader("Peta Segmentasi (PCA) dengan Prediksi Baru")
-        fig_pca_updated = plot_pca_clusters(pca_data_historis, pca, X_new_pca, predicted_cluster)
-        st.pyplot(fig_pca_updated)
-    
+        st.subheader("Peta Segmentasi Pelanggan (PCA) - Hasil Prediksi")
+        fig_updated = plot_pca_clusters(pca_data_historis, pca, new_point_pca, predicted_cluster)
+        pca_plot_area.pyplot(fig_updated) 
+
     # 6. Tampilkan Hasil Prediksi dan Tindakan Bisnis
     with col_results_display:
         st.subheader("3. Hasil Prediksi")
         st.success(f"Segmen Diprediksi: **Kluster {predicted_cluster}**")
         
-        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI (DINAMIS DARI PKL) ---
+        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI (PENTING) ---
         st.markdown(f"**Pola Khas Kluster {predicted_cluster}:**")
-        profile_key = predicted_cluster
         
-        # Ambil profil kluster yang diprediksi dari DataFrame yang dimuat
+        # PERBAIKAN AKHIR: Konversi predicted_cluster menjadi string untuk akses loc
+        profile_key_str = str(predicted_cluster) 
+        
         st.dataframe(
-            CLUSTER_PROFILES_DF.loc[[profile_key]].T.rename(columns={profile_key: "Pengeluaran Rata-rata"}).style.format("{:,.0f}"),
+            # Akses menggunakan string key
+            CLUSTER_PROFILES_DF.loc[[profile_key_str]].T.rename(columns={profile_key_str: "Pengeluaran Rata-rata"}).style.format("{:,.0f}"),
             use_container_width=True
         )
         
