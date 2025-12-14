@@ -8,7 +8,7 @@ from io import BytesIO # Digunakan untuk memuat konten biner dari URL
 
 # --- 🎯 GANTI INI DENGAN URL FOLDER RAW GITHUB ANDA ---
 # Contoh: https://raw.githubusercontent.com/username/repo/branch/folder_path/
-MODEL_BASE_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv" 
+MODEL_BASE_URL = "https://github.com/atikareski/finalDataMining_AtikaReski/raw/refs/heads/main/models/" 
 # --------------------------------------------------------
 
 # --- KONFIGURASI MODEL YANG DIMUAT ---
@@ -195,3 +195,4 @@ if predict_button:
             st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume pada produk Sembako dan produk berumur panjang.")
         else:
             st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik pasokan yang cepat dan andal.")
+
