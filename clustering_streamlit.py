@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # --- 🎯 GANTI INI DENGAN URL MENTAH (RAW) GITHUB ANDA ---
 # Ganti ini agar Streamlit dapat memuat data dari sumber publik
-GITHUB_RAW_URL = "GANTI_DENGAN_URL_RAW_GITHUB_ANDA"
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
 # --------------------------------------------------------
 
 # --- Konfigurasi Halaman Streamlit ---
@@ -181,3 +181,4 @@ Visualisasi ini menunjukkan 'resep' untuk setiap kluster:
 * **Batang Positif:** Fitur ini **meningkatkan** peluang pelanggan masuk ke kluster tersebut.
 * **Batang Negatif:** Fitur ini **menurunkan** peluang pelanggan masuk ke kluster tersebut (karena itu adalah ciri khas kluster lain).
 """)
+
