@@ -48,7 +48,8 @@ def load_and_preprocess_models():
     else:
         X_means = None
 
-    if not all([scaler, model_logistic, pca, pca_data_historis]):
+    if scaler is None or model_logistic is None or pca is None or pca_data_historis is None:
+        st.error("Satu atau lebih file model (.pkl) gagal dimuat. Periksa kembali URL dan akses file.")
         st.stop()
         
     return scaler, model_logistic, pca, pca_data_historis, X_means
@@ -195,4 +196,5 @@ if predict_button:
             st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume pada produk Sembako dan produk berumur panjang.")
         else:
             st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik pasokan yang cepat dan andal.")
+
 
