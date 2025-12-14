@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings # BARIS TAMBAHAN UNTUK MENGATASI ERROR KONVERGENSI
 
 # --- 🎯 GANTI INI DENGAN URL MENTAH (RAW) GITHUB ANDA ---
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
@@ -18,14 +19,13 @@ st.set_page_config(layout="wide")
 st.title("Aplikasi Otomatisasi Segmentasi Pelanggan")
 st.caption("Fokus: Memeriksa perilaku pelanggan baru dan memprediksi segmen klusternya.")
 
-# Definisikan K Optimal (berdasarkan hasil analisis sebelumnya)
+# Definisikan K Optimal
 K_FIXED = 3 
 
 # --- 1. Muat Data dan Standardisasi (Caching) ---
 @st.cache_data
 def load_and_preprocess_data(url):
     try:
-        # Gunakan nama file yang diharapkan jika URL tidak berfungsi
         df = pd.read_csv(url) 
         spending_cols = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
         X = df[spending_cols]
@@ -44,6 +44,9 @@ if df_original.empty or X_scaled is None:
 # --- 2. Latih Model K-Means & Logistik (Caching) ---
 @st.cache_resource
 def train_models(k, X_scaled, df_base, spending_cols):
+    # Nonaktifkan ConvergenceWarning
+    warnings.filterwarnings('ignore', category=UserWarning) 
+
     # K-Means Clustering (K=3)
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     df_clustered = df_base.copy()
@@ -57,21 +60,17 @@ def train_models(k, X_scaled, df_base, spending_cols):
     # Membagi data (tanpa stratify)
     X_train, X_test, Y_train, Y_test = train_test_split(X_logreg, Y_logreg, test_size=0.3, random_state=42) 
     
-    # Latih model Logistik DENGAN PERBAIKAN STABILITAS
+    # Latih model Logistik DENGAN PERBAIKAN STABILITAS FINAL
     model_logistic = LogisticRegression(
         random_state=42, 
-        solver='liblinear',   # Solusi: Menggunakan solver yang paling stabil dan tangguh
-        max_iter=5000,        
-        multi_class='ovr',    # Menggunakan OvR (One-vs-Rest) karena liblinear tidak mendukung multinomial secara native
-        C=0.8                 # Sedikit menurunkan regularisasi untuk membantu konvergensi
+        solver='lbfgs',      # Kembali ke lbfgs
+        max_iter=10000,      # Meningkatkan iterasi
+        multi_class='multinomial', 
+        tol=0.0001
     )
-    
     model_logistic.fit(X_train, Y_train)
     
-    # Hitung akurasi model
     accuracy = accuracy_score(Y_test, model_logistic.predict(X_test))
-    
-    # Koefisien untuk Visualisasi
     coef_df = pd.DataFrame(model_logistic.coef_, columns=spending_cols, index=[f'Koefisien Kluster {i}' for i in range(k)])
     
     return cluster_spending_means, model_logistic, accuracy, coef_df, df_clustered
@@ -186,4 +185,3 @@ if st.sidebar.button("Prediksi Kluster Pelanggan"):
         st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume untuk Sembako dan Milk.")
     else:
         st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik cepat.")
-
