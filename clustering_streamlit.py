@@ -8,15 +8,17 @@ from io import BytesIO
 
 # --- 🎯 GANTI INI DENGAN URL FOLDER RAW GITHUB ANDA ---
 MODEL_BASE_URL = "https://github.com/atikareski/finalDataMining_AtikaReski/raw/refs/heads/main/models/" 
+# Contoh: "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/main/models/"
 # --------------------------------------------------------
 
 # --- KONFIGURASI MODEL YANG DIMUAT ---
 K_FIXED = 3 
 SPENDING_COLS = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
 
-# --- PROFIL KLUSTER STATIS UNTUK DISPLAY ---
-# Indeks HARUS string ('0', '1', '2') agar sesuai dengan tipe data di Streamlit
+# --- PROFIL KLUSTER STATIS UNTUK DISPLAY (Menggantikan file PKL profil) ---
+# Nilai ini HARUS disalin dari output 'Profil Kluster Asli' di kode pelatihan Anda.
 CLUSTER_PROFILES_DATA = {
+    # Contoh data profil Kluster 0, 1, 2
     'Fresh': [15000, 5000, 30000],          
     'Milk': [4000, 8000, 15000],            
     'Grocery': [7000, 15000, 10000],        
@@ -24,9 +26,8 @@ CLUSTER_PROFILES_DATA = {
     'Detergents_Paper': [1500, 6000, 3000],
     'Delicassen': [1000, 2000, 5000]
 }
-# DataFrame dibuat dengan INDEX STRING yang benar
-CLUSTER_PROFILES_DF = pd.DataFrame(CLUSTER_PROFILES_DATA, index=['0', '1', '2'])
-CLUSTER_PROFILES_DF = CLUSTER_PROFILES_DF.T.rename(columns={'0': 'Kluster 0', '1': 'Kluster 1', '2': 'Kluster 2'}).T
+# KUNCI: Indeks Pengeluaran, Kolom Kluster ID ('0', '1', '2') sebagai String
+CLUSTER_PROFILES_DF = pd.DataFrame(CLUSTER_PROFILES_DATA, index=['0', '1', '2']).T 
 
 
 # --- 1. Muat Model dan Data (Caching) ---
@@ -47,18 +48,18 @@ def load_and_preprocess_models():
             st.error(f"Error memuat {filename}: {e}")
             return None
 
-    # Muat hanya 4 objek PKL yang diperlukan
+    # Muat 4 objek yang diperlukan
     scaler = fetch_model("scaler.pkl")
     model_logistic = fetch_model("model_logistic.pkl")
     pca = fetch_model("pca.pkl")
     pca_data_historis = fetch_model("pca_data_historis.pkl")
     
     if scaler is not None:
+        # Ambil rata-rata untuk input default
         X_means = pd.Series(scaler.mean_, index=SPENDING_COLS).round(0).astype(int)
     else:
         X_means = None
 
-    # Pengecekan stabilitas pemuatan (4 objek)
     if scaler is None or model_logistic is None or pca is None or pca_data_historis is None:
         st.error("Satu atau lebih file model (.pkl) gagal dimuat. Periksa kembali URL dan akses file.")
         st.stop()
@@ -68,13 +69,12 @@ def load_and_preprocess_models():
 # Jalankan pemuatan model
 scaler, model_logistic, pca, pca_data_historis, X_means = load_and_preprocess_models() 
 
-
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
 st.title("Aplikasi Prediksi Segmen Pelanggan Baru (K=3)")
 st.caption("Model Logistik Regression, diperkuat dengan Oversampling untuk Kluster Minoritas.")
 
-# --- Fungsi Visualisasi PCA (Tidak Berubah) ---
+# --- Fungsi Visualisasi PCA (Termasuk Pelanggan Baru) ---
 def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_cluster=None):
     fig, ax = plt.subplots(figsize=(10, 8))
     
@@ -111,8 +111,8 @@ def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_clus
         )
         
     ax.set_title(f'Peta Segmentasi Pelanggan (K={K_FIXED})', fontsize=16)
-    ax.set_xlabel('PC1: Kebutuhan Pokok & Barang Jangka Panjang (Ritel)', fontsize=12)
-    ax.set_ylabel('PC2: Bahan Baku Segar & Khusus (Restoran/Hotel)', fontsize=12)
+    ax.set_xlabel('Faktor Kebutuhan Pokok Ritel (PC1)', fontsize=12)
+    ax.set_ylabel('Faktor Bahan Baku Segar & Khusus (PC2)', fontsize=12)
     
     legend1 = ax.legend(*scatter.legend_elements(), title="Kluster", loc="lower left", title_fontsize=12, fontsize=10)
     ax.add_artist(legend1)
@@ -123,7 +123,7 @@ def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_clus
     ax.grid(True, linestyle='--', alpha=0.6)
     return fig
 
-# --- Layout Aplikasi dan Input (Tidak Berubah) ---
+# --- Layout Aplikasi dan Input ---
 
 st.sidebar.header("Uji Prediksi Pelanggan Baru")
 st.sidebar.markdown("Masukkan pengeluaran tahunan (Rp):")
@@ -154,8 +154,8 @@ with col_pca_display:
 with col_results_display:
     st.subheader("Tinjauan Segmen Historis")
     
-    # Tampilkan profil rata-rata semua kluster (DIMUAT STATIS)
-    st.dataframe(CLUSTER_PROFILES_DF.T.style.format("{:,.0f}"), use_container_width=True)
+    # Tampilkan profil rata-rata semua kluster (STATIS)
+    st.dataframe(CLUSTER_PROFILES_DF.style.format("{:,.0f}"), use_container_width=True) 
     st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
 
 
@@ -189,14 +189,14 @@ if predict_button:
         st.subheader("3. Hasil Prediksi")
         st.success(f"Segmen Diprediksi: **Kluster {predicted_cluster}**")
         
-        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI (Dari data statis) ---
+        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI ---
         st.markdown(f"**Pola Khas Kluster {predicted_cluster}**")
         
-        # Mengakses DataFrame statis menggunakan string index yang sudah disiapkan
         profile_key_str = str(predicted_cluster) 
         
         st.dataframe(
-            CLUSTER_PROFILES_DF.loc[[profile_key_str]].T.rename(columns={profile_key_str: "Pengeluaran Rata-rata"}).style.format("{:,.0f}"),
+            # Akses kolom (Kluster ID: '0', '1', '2')
+            CLUSTER_PROFILES_DF[[profile_key_str]].rename(columns={profile_key_str: "Pengeluaran Rata-rata"}).style.format("{:,.0f}"),
             use_container_width=True
         )
         
