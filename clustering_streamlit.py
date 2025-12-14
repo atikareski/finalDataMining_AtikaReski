@@ -2,110 +2,182 @@ import streamlit as st
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, accuracy_score, classification_report
 from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 import numpy as np
+import matplotlib.pyplot as plt
 
+# --- 🎯 GANTI INI DENGAN URL MENTAH (RAW) GITHUB ANDA ---
+# Ganti ini agar Streamlit dapat memuat data dari sumber publik
+GITHUB_RAW_URL = "GANTI_DENGAN_URL_RAW_GITHUB_ANDA"
+# --------------------------------------------------------
+
+# --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
-st.title("Aplikasi Segmentasi Pelanggan (K-Means Clustering)")
-st.write("Aplikasi ini melakukan segmentasi pelanggan grosir menggunakan K-Means dan Silhouette Score, serta memvisualisasikan hasilnya dengan PCA.")
+st.title("Segmentasi Pelanggan (K-Means) & Otomatisasi Klasifikasi (LogReg)")
+st.caption("Aliran Kerja: Clustering (Unsupervised) -> Classification (Supervised)")
 
+# --- 1. Muat Data dan Standardisasi ---
 @st.cache_data
-def load_data(file_name):
+def load_and_preprocess_data(url):
     try:
-        df = pd.read_csv(file_name)
-        return df
-    except FileNotFoundError:
-        st.error(f"File '{file_name}' tidak ditemukan. Pastikan file berada di direktori yang sama.")
-        return pd.DataFrame()
+        df = pd.read_csv(url)
+        spending_cols = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
+        X = df[spending_cols]
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        return df, X_scaled, spending_cols
+    except Exception as e:
+        st.error(f"Gagal memuat data dari URL. Pastikan URL GitHub Raw Anda benar. Error: {e}")
+        return pd.DataFrame(), None, None
 
-FILE_NAME = "https://raw.githubusercontent.com/atikareski/finalDataMining_AtikaReski/refs/heads/main/Wholesale%20customers%20data.csv"
-df_original = load_data(FILE_NAME)
+df_original, X_scaled, spending_cols = load_and_preprocess_data(GITHUB_RAW_URL)
 
-if not df_original.empty:
-    st.header("1. Data Awal")
-    st.dataframe(df_original.head())
+if df_original.empty or X_scaled is None:
+    st.stop()
 
-    spending_cols = ['Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen']
-    X = df_original[spending_cols]
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    st.header("2. Penentuan Jumlah Kluster Optimal (K)")
-    
+# --- 2. Tentukan k Optimal (Skor Siluet) ---
+@st.cache_data
+def calculate_optimal_k(X_scaled):
     silhouette_results = []
     k_range = range(2, 11)
-
     for k in k_range:
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         cluster_labels = kmeans.fit_predict(X_scaled)
         score = silhouette_score(X_scaled, cluster_labels)
         silhouette_results.append({'k': k, 'Skor Siluet': score})
-
-    silhouette_df = pd.DataFrame(silhouette_results)
     
-    st.subheader("Hasil Perhitungan Silhouette Score")
-    st.dataframe(silhouette_df, hide_index=True, use_container_width=True, height=350)
+    silhouette_df = pd.DataFrame(silhouette_results)
+    k_optimal = int(silhouette_df.loc[silhouette_df['Skor Siluet'].idxmax()]['k'])
+    return k_optimal, silhouette_df
 
-    k_optimal = silhouette_df.loc[silhouette_df['Skor Siluet'].idxmax()]['k']
-    st.success(f"Silhouette Score tertinggi adalah **{silhouette_df['Skor Siluet'].max():.4f}** pada k = **{int(k_optimal)}**. Kami menggunakan k={int(k_optimal)} untuk clustering.")
+k_optimal, silhouette_df = calculate_optimal_k(X_scaled)
 
-    kmeans = KMeans(n_clusters=int(k_optimal), random_state=42, n_init=10)
-    df_original['Cluster'] = kmeans.fit_predict(X_scaled)
+# --- Tampilan Utama Streamlit ---
+st.header("1. Data dan K Optimal")
+col_data, col_k = st.columns([1, 1])
 
+with col_data:
+    st.subheader("Data Awal (5 Baris Teratas)")
+    st.dataframe(df_original.head(), use_container_width=True)
+
+with col_k:
+    st.subheader("Penentuan Jumlah Kluster (K)")
+    st.dataframe(silhouette_df.style.format(precision=4), hide_index=True, use_container_width=True)
+    st.success(f"Skor Siluet tertinggi pada K = **{k_optimal}**.")
+
+# --- 3. Terapkan K-Means & Profil Kluster ---
+@st.cache_data
+def run_clustering(k, X_scaled, df_base, spending_cols):
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    df_base['Cluster'] = kmeans.fit_predict(X_scaled)
+    cluster_spending_means = df_base.groupby('Cluster')[spending_cols].mean().round(2)
+    return df_base, cluster_spending_means
+
+df_clustered, cluster_spending_means = run_clustering(k_optimal, X_scaled, df_original.copy(), spending_cols)
+
+st.header(f"2. Hasil K-Means Clustering (K={k_optimal})")
+st.subheader("Profil Kluster (Rata-rata Pengeluaran)")
+st.dataframe(cluster_spending_means, use_container_width=True)
+
+# --- 4. & 5. Visualisasi Kluster (PCA) ---
+@st.cache_data
+def plot_pca_clusters(df_clustered, X_scaled, k_optimal):
     pca = PCA(n_components=2)
     principal_components = pca.fit_transform(X_scaled)
     pca_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
-    pca_df['Cluster'] = df_original['Cluster']
-
-    st.header("3. Visualisasi Kluster Pelanggan (PCA)")
+    pca_df['Cluster'] = df_clustered['Cluster']
 
     fig, ax = plt.subplots(figsize=(10, 8))
-
     scatter = ax.scatter(
-        pca_df['PC1'],
-        pca_df['PC2'],
-        c=pca_df['Cluster'],
-        cmap='viridis',
-        marker='o',
-        s=50,
-        alpha=0.8
+        pca_df['PC1'], pca_df['PC2'], c=pca_df['Cluster'],
+        cmap='viridis', marker='o', s=50, alpha=0.8
     )
-
-    ax.set_title(f'Visualisasi Kluster Pelanggan Berdasarkan Pola Pembelian (k={int(k_optimal)})', fontsize=16)
+    
+    ax.set_title(f'Visualisasi Kluster Pelanggan Menggunakan PCA (k={k_optimal})', fontsize=16)
     ax.set_xlabel('Faktor Kebutuhan Pokok Ritel (PC1)', fontsize=12)
     ax.set_ylabel('Faktor Bahan Baku Segar & Khusus (PC2)', fontsize=12)
-
-    legend1 = ax.legend(*scatter.legend_elements(), 
-                        title="Kluster", 
-                        loc="lower left", 
-                        title_fontsize=12,
-                        fontsize=10)
-    ax.add_artist(legend1)
+    ax.legend(*scatter.legend_elements(), title="Kluster", loc="lower left", title_fontsize=12, fontsize=10)
     ax.grid(True, linestyle='--', alpha=0.6)
+    return fig
 
-    st.pyplot(fig)
+fig_pca = plot_pca_clusters(df_clustered, X_scaled, k_optimal)
+st.subheader("Visualisasi Kluster (PCA)")
+st.pyplot(fig_pca)
 
-    st.header("4. Profil Kluster (Rata-rata Pengeluaran)")
-    cluster_spending_means = df_original.groupby('Cluster')[spending_cols].mean().round(2)
+
+# ----------------------------------------------------------------------
+st.header("3. Klasifikasi Lanjutan: Regresi Logistik")
+st.markdown("Model Regresi Logistik digunakan untuk memprediksi kluster pelanggan baru, mengotomatisasi segmentasi.")
+
+# --- 6. Model Regresi Logistik Multinomial ---
+@st.cache_data
+def run_logistic_regression(X_scaled, Y_logreg, spending_cols, k_optimal):
+    X_train, X_test, Y_train, Y_test = train_test_split(
+        X_scaled, Y_logreg, test_size=0.3, random_state=42, stratify=Y_logreg
+    )
+
+    # Menggunakan multi_class='auto' (yang defaultnya adalah multinomial jika lebih dari 2 kelas)
+    model_logistic = LogisticRegression(random_state=42, solver='lbfgs', max_iter=1000)
+    model_logistic.fit(X_train, Y_train)
+
+    Y_pred = model_logistic.predict(X_test)
+    accuracy = accuracy_score(Y_test, Y_pred)
     
-    st.write("Tabel di bawah menunjukkan pola pengeluaran rata-rata tahunan (dalam mata uang lokal) untuk setiap segmen pelanggan yang teridentifikasi.")
-    st.dataframe(cluster_spending_means, use_container_width=True)
+    # zero_division=1 untuk menghindari peringatan jika ada kluster yang tidak diprediksi
+    report = classification_report(Y_test, Y_pred, target_names=[f'Kluster {i}' for i in range(k_optimal)], output_dict=True, zero_division=1)
+    
+    coef_df = pd.DataFrame(model_logistic.coef_, columns=spending_cols, index=[f'Koefisien Kluster {i}' for i in range(k_optimal)])
+    
+    return accuracy, report, coef_df
 
-    st.subheader("Ukuran Setiap Kluster")
-    cluster_size = df_original['Cluster'].value_counts().sort_index()
-    st.dataframe(cluster_size.rename("Jumlah Pelanggan").to_frame(), use_container_width=True)
+accuracy, report, coef_df = run_logistic_regression(X_scaled, df_clustered['Cluster'], spending_cols, k_optimal)
 
-    st.markdown("### Kesimpulan")
-    st.markdown("""
-        Analisis berhasil mengelompokkan pelanggan menjadi **3 segmen strategis** berdasarkan kebiasaan belanja:
+col_acc, col_rep = st.columns([1, 2])
+
+with col_acc:
+    st.subheader("Akurasi Model")
+    st.metric(label="Akurasi Klasifikasi", value=f"{accuracy*100:.2f} %")
+
+with col_rep:
+    st.subheader("Laporan Klasifikasi per Kluster")
+    st.dataframe(pd.DataFrame(report).transpose().iloc[:-3].style.format(precision=4), use_container_width=True)
+
+
+# --- 7. Visualisasi Koefisien Regresi Logistik ---
+def plot_logreg_coefficients(coef_df, k_optimal, spending_cols):
+    fig, axes = plt.subplots(k_optimal, 1, figsize=(12, k_optimal * 4), sharex=True)
+    plt.subplots_adjust(hspace=0.5)
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c'] 
+
+    for i in range(k_optimal):
+        cluster_name = f'Kluster {i}'
+        ax = axes[i]
+        coef = coef_df.iloc[i]
         
-        | Segmen | Perilaku Kunci | Strategi Bisnis |
-        | :--- | :--- | :--- |
-        | **Toko Ritel & Kebutuhan Pokok (Kluster 0)** | Pengeluaran tinggi pada Sembako, Susu, dan Detergents/Kertas. | Fokus pada **Diskon Volume** dan efisiensi logistik. |
-        | **Pemilik Restoran atau Katering (Kluster 1)** | Pengeluaran tinggi pada Produk **Segar (Fresh)** dengan jumlah tinggi. | Fokus pada **Kualitas Bahan Baku** dan konsistensi pasokan. |
-        | **Pembeli Eksklusif Super-Premium (Kluster 2)** | Pengeluaran ekstrem pada **Frozen** dan **Delicassen**. | Perlakukan sebagai Akun Kunci (Key Account) memprioritaskan layanan eksklusif dan retensi. |
-    """)
+        ax.bar(coef.index, coef.values, color=np.where(coef.values > 0, colors[i], 'red'))
+        
+        ax.set_title(f'Bobot Fitur untuk Memprediksi {cluster_name}', fontsize=14)
+        ax.set_ylabel('Koefisien LogReg', fontsize=10)
+        ax.axhline(0, color='black', linestyle='--', linewidth=0.8)
+        
+        if i == k_optimal - 1:
+            ax.tick_params(axis='x', rotation=45)
+        else:
+            ax.tick_params(axis='x', labelbottom=False)
 
+    plt.suptitle('Visualisasi Koefisien Regresi Logistik (Bobot Fitur)', fontsize=16, fontweight='bold')
+    return fig
 
+fig_logreg = plot_logreg_coefficients(coef_df, k_optimal, spending_cols)
+st.subheader("4. Bobot Fitur (Koefisien Logistik)")
+st.pyplot(fig_logreg)
+
+st.markdown("""
+### Interpretasi Visualisasi Koefisien:
+Visualisasi ini menunjukkan 'resep' untuk setiap kluster:
+* **Batang Positif:** Fitur ini **meningkatkan** peluang pelanggan masuk ke kluster tersebut.
+* **Batang Negatif:** Fitur ini **menurunkan** peluang pelanggan masuk ke kluster tersebut (karena itu adalah ciri khas kluster lain).
+""")
