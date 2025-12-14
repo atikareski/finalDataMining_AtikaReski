@@ -4,7 +4,7 @@ import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
-from io import BytesIO # Digunakan untuk memuat konten biner dari URL
+from io import BytesIO 
 
 # --- 🎯 GANTI INI DENGAN URL FOLDER RAW GITHUB ANDA ---
 # Contoh: https://raw.githubusercontent.com/username/repo/branch/folder_path/
@@ -26,7 +26,6 @@ def load_and_preprocess_models():
         try:
             response = requests.get(url)
             if response.status_code == 200:
-                # Muat konten biner
                 return joblib.load(BytesIO(response.content))
             else:
                 st.error(f"Gagal mengunduh {filename}. Status: {response.status_code}")
@@ -41,21 +40,24 @@ def load_and_preprocess_models():
     pca = fetch_model("pca.pkl")
     pca_data_historis = fetch_model("pca_data_historis.pkl")
     
+    # MUAT PROFIL KLUSTER RATA-RATA (Diasumsikan disimpan saat pelatihan)
+    # Ini penting untuk menampilkan konteks hasil prediksi
+    cluster_profiles_df = fetch_model("cluster_spending_means.pkl") 
+    
     # Ambil rata-rata dari scaler untuk input default (X_train mean)
-    # Kita membuat DataFrame dummy hanya untuk mendapatkan kolom spending_cols
     if scaler is not None:
         X_means = pd.Series(scaler.mean_, index=SPENDING_COLS).round(0).astype(int)
     else:
         X_means = None
 
-    if scaler is None or model_logistic is None or pca is None or pca_data_historis is None:
+    if scaler is None or model_logistic is None or pca is None or pca_data_historis is None or cluster_profiles_df is None:
         st.error("Satu atau lebih file model (.pkl) gagal dimuat. Periksa kembali URL dan akses file.")
         st.stop()
         
-    return scaler, model_logistic, pca, pca_data_historis, X_means
+    return scaler, model_logistic, pca, pca_data_historis, X_means, cluster_profiles_df
 
 # Jalankan pemuatan model
-scaler, model_logistic, pca, pca_data_historis, X_means = load_and_preprocess_models()
+scaler, model_logistic, pca, pca_data_historis, X_means, cluster_profiles = load_and_preprocess_models()
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(layout="wide")
@@ -71,7 +73,7 @@ def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_clus
         pca_data_historis['PC1'], 
         pca_data_historis['PC2'], 
         c=pca_data_historis['Cluster'],
-        cmap='viridis', 
+        cmap='viridis', # Warna kluster historis
         marker='o', 
         s=50, 
         alpha=0.6,
@@ -91,7 +93,7 @@ def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_clus
             label=f'Pelanggan Baru (Kluster {predicted_cluster})'
         )
         ax.annotate(
-            'Pelanggan Baru', 
+            'Titik Prediksi', 
             (new_point[0, 0], new_point[0, 1]),
             textcoords="offset points", 
             xytext=(10, 10), 
@@ -101,8 +103,9 @@ def plot_pca_clusters(pca_data_historis, pca_obj, new_point=None, predicted_clus
         )
         
     ax.set_title(f'Peta Segmentasi Pelanggan (K={K_FIXED})', fontsize=16)
-    ax.set_xlabel('Faktor Kebutuhan Pokok Ritel (PC1)', fontsize=12)
-    ax.set_ylabel('Faktor Bahan Baku Segar & Khusus (PC2)', fontsize=12)
+    # Menambahkan interpretasi PC agar lebih jelas
+    ax.set_xlabel('PC1: Kebutuhan Pokok & Barang Jangka Panjang (Ritel)', fontsize=12)
+    ax.set_ylabel('PC2: Bahan Baku Segar & Khusus (Restoran/Hotel)', fontsize=12)
     
     legend1 = ax.legend(*scatter.legend_elements(), title="Kluster", loc="lower left", title_fontsize=12, fontsize=10)
     ax.add_artist(legend1)
@@ -120,7 +123,7 @@ st.sidebar.markdown("Masukkan pengeluaran tahunan (Rp):")
 
 input_values = {}
 for col_name in SPENDING_COLS:
-    default_mean = X_means[col_name] if X_means is not None else 5000 # Fallback jika mean tidak termuat
+    default_mean = X_means[col_name] if X_means is not None else 5000 
     input_values[col_name] = st.sidebar.number_input(
         f'{col_name} (Rata-rata: {default_mean:,})', 
         min_value=0, 
@@ -143,8 +146,9 @@ with col_pca_display:
 # Menampilkan Tinjauan Segmen
 with col_results_display:
     st.subheader("Tinjauan Segmen Historis")
-    # Karena kita tidak melatih model di sini, kita gunakan value_counts dari data PCA historis
-    st.dataframe(pca_data_historis['Cluster'].value_counts().rename("Jumlah Pelanggan").to_frame(), use_container_width=True)
+    
+    # Tampilkan profil rata-rata semua kluster
+    st.dataframe(cluster_profiles.T.style.format("{:,.0f}"), use_container_width=True)
     st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
 
 
@@ -157,7 +161,6 @@ if predict_button:
     X_new = new_customer_data.values
     
     # 2. Standardisasi data input secara MANUAL
-    # Menggunakan mean_ dan scale_ dari scaler yang dimuat
     new_customer_scaled = (X_new - scaler.mean_) / scaler.scale_
     
     # 3. Prediksi Kluster & Probabilitas
@@ -172,29 +175,37 @@ if predict_button:
     with col_pca_display:
         st.subheader("Peta Segmentasi Pelanggan (PCA) - Hasil Prediksi")
         fig_updated = plot_pca_clusters(pca_data_historis, pca, new_point_pca, predicted_cluster)
-        pca_plot_area.pyplot(fig_updated) # Memperbarui plot
+        pca_plot_area.pyplot(fig_updated) 
 
     # 6. Tampilkan Hasil Prediksi dan Tindakan Bisnis
     with col_results_display:
         st.subheader("3. Hasil Prediksi")
         st.success(f"Segmen Diprediksi: **Kluster {predicted_cluster}**")
         
+        # --- MENAMPILKAN PROFIL KLUSTER YANG DIPREDIKSI (PENTING UNTUK KEJELASAN) ---
+        st.markdown(f"**Pola Khas Kluster {predicted_cluster}:**")
+        profile_key = predicted_cluster
+        
+        st.dataframe(
+            cluster_profiles.loc[[profile_key]].T.rename(columns={profile_key: "Pengeluaran Rata-rata"}).style.format("{:,.0f}"),
+            use_container_width=True
+        )
+        
+        # --- Menampilkan Probabilitas ---
         st.markdown("##### Probabilitas Keyakinan Model:")
         proba_df = pd.DataFrame(
             {'Kluster': [f'Kluster {i}' for i in range(K_FIXED)], 
              'Probabilitas': prediction_proba.round(4)
             }
         ).sort_values(by='Probabilitas', ascending=False)
-        st.dataframe(proba_df, hide_index=True)
+        st.dataframe(proba_df.style.format({'Probabilitas': "{:.2%}"}), hide_index=True)
         
         st.markdown("---")
-        st.markdown("##### Rekomendasi Tindakan Bisnis:")
+        st.markdown("##### Rekomendasi Tindakan Bisnis (Actionable Insight):")
         
         if predicted_cluster == 2:
-            st.warning("Kluster 2 (Super-Premium): Alihkan segera ke tim Key Account (Akun Kunci) dengan penawaran eksklusif.")
+            st.warning("Kluster 2 (Super-Premium): Fokus pada **Profit Tinggi**. Alihkan segera ke tim Key Account (Akun Kunci) dengan penawaran eksklusif.")
         elif predicted_cluster == 0:
-            st.info("Kluster 0 (Ritel): Targetkan dengan diskon volume pada produk Sembako dan produk berumur panjang.")
+            st.info("Kluster 0 (Ritel): Fokus pada **Volume**. Targetkan dengan diskon volume pada produk Sembako dan produk berumur panjang.")
         else:
-            st.info("Kluster 1 (Restoran): Fokus pada kualitas produk Fresh dan logistik pasokan yang cepat dan andal.")
-
-
+            st.info("Kluster 1 (Restoran): Fokus pada **Kualitas Pasokan**. Fokus pada kualitas produk Fresh dan logistik pasokan yang cepat dan andal.")
