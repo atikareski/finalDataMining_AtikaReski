@@ -57,7 +57,6 @@ def train_models(url):
         random_state=42, 
         solver='lbfgs',      
         max_iter=10000,        
-        multi_class='multinomial',
         tol=0.0001
     )
     model_logistic.fit(X_train, Y_train)
@@ -219,3 +218,4 @@ else:
     with col_results_display:
         st.subheader("Tinjauan Segmen")
         st.info("Tekan tombol 'Prediksi Segmen' di sidebar untuk menguji pelanggan baru!")
+
