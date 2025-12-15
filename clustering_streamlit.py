@@ -126,7 +126,7 @@ for col_name in SPENDING_COLS:
 
 predict_button = st.sidebar.button("Prediksi Segmen")
 
-st.header("1. Peta Segmentasi Pelanggan Historis")
+st.header("Peta Segmentasi Pelanggan Historis")
 col_pca_display, col_results_display = st.columns([2, 1])
 
 with col_pca_display:
@@ -161,7 +161,7 @@ if predict_button:
         pca_plot_area.pyplot(fig_updated) 
 
     with col_results_display:
-        st.subheader("3. Hasil Prediksi")
+        st.subheader("Hasil Prediksi")
         st.success(f"Segmen Diprediksi: **Kluster {predicted_cluster}**")
  
         st.markdown(f"**Pola Khas Kluster {predicted_cluster}**")
@@ -190,4 +190,3 @@ if predict_button:
             st.info("Kluster 0 (Toko Grosir): Jual produk Grocery dan kertas/detergen sebanyak-banyaknya dengan harga termurah. Tawarkan diskon besar untuk pembelian dalam jumlah sangat banyak.")
         else:
             st.info("Kluster 1 (Restoran): Utamakan kecepatan kirim dan kualitas terbaik untuk produk segar (sayur, daging, susu). Pastikan stok mereka selalu tersedia tanpa perlu menyimpan banyak (just-in-time).")
-
